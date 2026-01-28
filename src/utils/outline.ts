@@ -1,4 +1,4 @@
-import acios from 'axios';
+import axios from 'axios';
 import {loadUsers, save} from './database'
 
 const BASE_URL = process.env.API_URL;
@@ -50,8 +50,8 @@ export async function createOutlineAccessKey(
 
 export async function getAllKeys() {
   try {
-  const data = await BASE_HTTP.get<ApiKey[]>('')
-  return data.data.map(k => k.apiKey)
+  const data = await BASE_HTTP.get<ApiKey[]>()
+  return data.data.map((k: ApiKey) => k.apiKey)
   } catch(err) {
     return err
   }
