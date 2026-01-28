@@ -19,7 +19,6 @@ export interface User {
 export interface KeyInfo {
   id: string;
 port: string;
-method: string;
 name: string;
 password: string;
 method: string:
