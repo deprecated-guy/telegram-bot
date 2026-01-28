@@ -7,9 +7,7 @@ const BASE_HTTP = axios.create({
   baseURL: BASE_URL + '/access-keys',
     headers: {
       'Content-Type': 'application/json',
-    
-    },
-    httpsAgent: { rejectUnauthorized: false },
+}
 })
 
 export interface User {
