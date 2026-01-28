@@ -51,7 +51,7 @@ export async function createOutlineAccessKey(
 export async function getAllKeys() {
   try {
   const data = await BASE_HTTP.get<ApiKey[]>()
-  return data.data.map((k: ApiKey) => k.apiKey)
+  return (data.data as unknown as ApiKey[]).map((k: ApiKey) => k.apiKey)
   } catch(err) {
     return err
   }
