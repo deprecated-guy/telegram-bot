@@ -1,9 +1,9 @@
-import { Axios } from 'axios';
+import acios from 'axios';
 import {loadUsers, save} from './database'
 
 const BASE_URL = process.env.API_URL;
 
-const BASE_HTTP = Axios.create({
+const BASE_HTTP = axios.create({
   baseUrl: BASE_URL + '/access-keys',
     headers: {
       'Content-Type': 'application/json',
