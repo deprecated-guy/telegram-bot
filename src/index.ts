@@ -27,7 +27,7 @@ type BotContext = Context & SessionFlavor<SessionData>;
 const bot = new Bot<BotContext>(process.env.BOT_TOKEN || '');
 
 // Session middleware
-bot.use(session({ initial: () => ({ creatingOutlineKey: false }) }));
+bot.use(session({ initial: () => ({ }) }));
 loadApiUrl();
 // Start command - show main menu
 bot.command('start', async (ctx) => {
