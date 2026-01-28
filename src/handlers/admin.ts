@@ -1,11 +1,11 @@
 import { Context } from 'grammy';
 import { getServerInfo, formatUptime, formatBytes } from '../utils/server';
-import { isAdmin } from '../utils/api-config';
+import { isAdmin } from '../utils/';
 
-function isAdmin(id: bigint) {
+export function isAdmin(id: bigint) {
   return process.env.ADMIN_ID!.toString() === id.toString()
 }
-export async function showAdminMenu(ctx: Context, apiConfig: APIConfig): Promise<void> {
+export async function showAdminMenu(ctx: Context, apiCinfig: ): Promise<void> {
   if (!isAdmin(ctx.from?.id || 0, apiConfig)) {
     await ctx.reply('❌ You do not have admin access.');
     return;

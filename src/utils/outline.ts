@@ -1,6 +1,6 @@
 import axios from 'axios';
-import {loadUsers, save} from ''
-consr BASE_URL = process.env.API_URL;
+import {loadUsers, save} from './database'
+const BASE_URL = process.env.API_URL;
 
 export interface User {
   id: number;
@@ -8,8 +8,8 @@ export interface User {
   apiKey: string;
 }
 
-export i terface ApiKey {
-  apiKey: string
+export interface ApiKey {
+  apiKey: string;
 }
 /**
  * Create a new access key for Outline server
@@ -20,7 +20,7 @@ export async function createOutlineAccessKey(
 ): Promise<string> {
   try {
     const response = await axios.post<ApiKey>(
-      `${server.apiUrl}/access-keys`,
+      `${BASE_URL}/access-keys`,
       {
         name,
       },
@@ -33,9 +33,10 @@ export async function createOutlineAccessKey(
     );
     const users = loadUsers()
     const user = {
-      id: users.length+1,
+      id: users?.length ? users.length +1 : 1,
       username,
-      apiKey: response.data.apiKey;
+      apiKey: response.data.apiKey,
+    }
     if(save(user)) return response.data.apiKey;
     return 'Error while creating key. This use already exists in database'
   } catch (error) {

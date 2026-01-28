@@ -53,7 +53,7 @@ export async function showAbout(ctx: Context): Promise<void> {
   const message = `
 ❓ <b>About This Bot</b>
 
-<b>Telegram Bot with Grammy</b>
+<b>Shaddy VPN Bot</b>
 Version: 1.0.0
 
 <b>Features:</b>
