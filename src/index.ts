@@ -142,7 +142,7 @@ bot.on('message:text', async (ctx) => {
 
       // find saved user to get id
       const users = loadUsers() ?? [];
-      const saved = users.find(u => u.username === username && u.apiKey === apiKey);
+      const saved = users.find(u => u.username === username);
       const masked = apiKey ? `${apiKey.slice(0,6)}...${apiKey.slice(-6)}` : 'N/A';
 
       const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
