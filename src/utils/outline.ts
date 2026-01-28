@@ -27,8 +27,8 @@ export async function createOutlineAccessKey(
   username: string
 ): Promise<string> {
   try {
-    const response = await BASE_HTTP.post<ApiKey>(
-      '/',
+    const response = await axios.post<ApiKey>(
+      BASE_URL + '/access-keys',
 {
         name,
       },
@@ -49,7 +49,7 @@ export async function createOutlineAccessKey(
 
 export async function getAllKeys() {
   try {
-  const data = await BASE_HTTP.get<ApiKey[]>('/')
+  const data = await axios.get<ApiKey[]>(BASE_URL + '/access-keys')
   return (data.data as unknown as ApiKey[]).map((k: ApiKey) => k.apiKey)
   } catch(err) {
     return err
