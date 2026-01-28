@@ -1,4 +1,5 @@
 import { Context } from 'grammy';
+import { BUTTONS } from '../utils/buttons';
 
 export async function showMainMenu(ctx: Context): Promise<void> {
   const message = `
@@ -9,11 +10,7 @@ Choose an action:
 
   await ctx.reply(message.trim(), {
     reply_markup: {
-      inline_keyboard: [
-        [{ text: '👨‍💼 Admin Panel', callback_data: 'admin_menu' }],
-        [{ text: '📚 Help', callback_data: 'help' }],
-        [{ text: '❓ About', callback_data: 'about' }],
-      ],
+      inline_keyboard: BUTTONS.mainMenu(),
     },
   });
 }
@@ -42,9 +39,7 @@ export async function showHelp(ctx: Context): Promise<void> {
   await ctx.editMessageText(message.trim(), {
     parse_mode: 'HTML',
     reply_markup: {
-      inline_keyboard: [
-        [{ text: '🔙 Back', callback_data: 'main_menu' }],
-      ],
+      inline_keyboard: BUTTONS.backToMainMenu(),
     },
   });
 }
@@ -74,9 +69,7 @@ For issues or suggestions, contact the administrator.
   await ctx.editMessageText(message.trim(), {
     parse_mode: 'HTML',
     reply_markup: {
-      inline_keyboard: [
-        [{ text: '🔙 Back', callback_data: 'main_menu' }],
-      ],
+      inline_keyboard: BUTTONS.backToMainMenu(),
     },
   });
 }

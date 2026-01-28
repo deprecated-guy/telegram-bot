@@ -1,6 +1,16 @@
-import axios from 'axios';
+import { Axios } from 'axios';
 import {loadUsers, save} from './database'
+
 const BASE_URL = process.env.API_URL;
+
+const BASE_HTTP = Axios.create({
+  baseUrl: BASE_URL + '/access-keys',
+    headers: {
+      'Content-Type': 'application/json',
+    
+    },
+    httpsAgent: { rejectUnauthorized: false },
+})
 
 export interface User {
   id: number;
@@ -19,17 +29,10 @@ export async function createOutlineAccessKey(
   username: string
 ): Promise<string> {
   try {
-    const response = await axios.post<ApiKey>(
-      `${BASE_URL}/access-keys`,
+    const response = await BASE_HTTP.post<ApiKey>(
       {
         name,
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        httpsAgent: { rejectUnauthorized: false },
-      }
     );
     const users = loadUsers()
     const user = {
@@ -42,5 +45,14 @@ export async function createOutlineAccessKey(
   } catch (error) {
     console.error('Error creating Outline access key:', error);
     throw error;
+  }
+}
+
+export async function getAllKeys() {
+  try {
+  const data = await BASE_HTTP.get<ApiKey[]>('')
+  return data.map(k => k.apiKey)
+  } catch(err) {
+    return err
   }
 }

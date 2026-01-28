@@ -1,5 +1,5 @@
 import axios from 'axios'
-import {writeFileSync} 'fs'
+import {writeFileSync} from 'fs'
 /**
  * Retrieve API information from environment variables
  */
@@ -9,7 +9,7 @@ interface ApiInfo {
 }
 export async function loadApiUrl() {
  const url = 'locahost/opt/outline/access.txt';
- return await axios.get<ApiInfo>(url).then(e => saveUrlToEnv(e.apiUrl))
+ return await axios.get<ApiInfo>(url).then(e => saveUrlToEnv(e.data.apiUrl))
 }
 
 
