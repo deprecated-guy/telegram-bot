@@ -9,7 +9,7 @@ interface Db {
 const DB_PATH = join(process.cwd(), 'database.json');
 
 
-function ensureDbExists(): void {
+export function ensureDbExists(): void {
   if (!existsSync(DB_PATH)) {
     const emptyDb: Db = { users: [] };
     writeFileSync(DB_PATH, JSON.stringify(emptyDb, null, 2), 'utf-8');
