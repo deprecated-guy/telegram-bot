@@ -1,38 +1,55 @@
-import {User} from './outline'
-import {join} from 'path'
-import {writeFileSync} from 'fs'
+import { User } from './outline';
+import { join } from 'path';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+
 interface Db {
-    users: User[]
+  users: User[];
 }
 
-export function loadUsers() {
-    try {
-        const data = JSON.parse(join(process.cwd(), 'db.json')) as unknown as Db;
-    
-        return data.users ?? [];
-    } catch(e) {
-        console.error(e)
-    }
+const DB_PATH = join(process.cwd(), 'database.json');
+
+
+function ensureDbExists(): void {
+  if (!existsSync(DB_PATH)) {
+    const emptyDb: Db = { users: [] };
+    writeFileSync(DB_PATH, JSON.stringify(emptyDb, null, 2), 'utf-8');
+  }
 }
 
-export function save(user: User) 
-{
-    const loaded = loadUsers() ?? [];
 
+export function loadUsers(): User[] {
+  try {
+    ensureDbExists();
 
-    const users = [...loaded, user]
+    const raw = readFileSync(DB_PATH, 'utf-8');
+    const data = JSON.parse(raw) as Db;
 
-    const updatedDb = JSON.stringify({
-        users
-    },null, 2);
-    const found = find(user.username)
-    if(!found) {
-writeFileSync(join(process.cwd(),'database.json'), updatedDb)
-return true;
-    }
-    return false
+    return data.users ?? [];
+  } catch (e) {
+    console.error('Failed to load users:', e);
+    return [];
+  }
 }
 
-export function find(username: string) {
-    return loadUsers()?.find(u => u.username.includes(username)) ?? null;
+
+export function find(username: string): User | null {
+  const users = loadUsers();
+  return users.find(u => u.username === username) ?? null;
+}
+
+
+export function save(user: User): boolean {
+  const users = loadUsers();
+
+  const exists = users.some(u => u.username === user.username);
+  if (exists) {
+    return false;
+  }
+
+  const updated: Db = {
+    users: [...users, user],
+  };
+
+  writeFileSync(DB_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+  return true;
 }
