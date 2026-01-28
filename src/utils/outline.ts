@@ -30,7 +30,7 @@ export async function createOutlineAccessKey(
     const response = await axios.post<ApiKey>(
       BASE_URL + '/access-keys',
       {},
-{secure: false, headers: {'ContentType': 'application/json }}
+{secure: false, headers: {'ContentType': 'application/json' }}
     );
     const users = loadUsers()
     const user = {
