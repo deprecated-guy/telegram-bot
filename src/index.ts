@@ -18,7 +18,7 @@ dotenv.config();
 
 // Session type for managing conversation state
 interface SessionData {
-  creatingOutlineKey?: boolean;
+  creatingOutlineKey: boolean;
 }
 
 type BotContext = Context & SessionFlavor<SessionData>;
