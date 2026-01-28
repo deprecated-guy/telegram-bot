@@ -51,8 +51,8 @@ headers: {'Content-Type': 'application/json'}, httpsAgent: agent}
 
 export async function getAllKeys() {
   try {
-  const data = await axios.get<KeyInfo[]>(BASE_URL + '/access-keys')
-  return (data.data as unknown as KeyInfo[]).map((k: KeyInfo) => k.accessUrl)
+  const data = await axios.get<{accessKeys: KeyInfo[]}>(BASE_URL + '/access-keys')
+  return (data.data.accessKeys as unknown as KeyInfo[]).map((k: KeyInfo) => k.accessUrl)
   } catch(err) {
     return err
   }
