@@ -29,7 +29,7 @@ const bot = new Bot<BotContext>(process.env.BOT_TOKEN || '');
 
 // Session middleware
 bot.use(session({ initial: () => ({ }) }));
-loadApiUrl();
+
 // Start command - show main menu
 bot.command('start', async (ctx) => {
   await showMainMenu(ctx);
