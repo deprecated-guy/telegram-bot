@@ -16,8 +16,14 @@ export interface User {
   apiKey: string;
 }
 
-export interface ApiKey {
-  apiKey: string;
+export interface KeyInfo {
+  id: string;
+port: string;
+method: string;
+name: string;
+password: string;
+method: string:
+accessKey: string;
 }
 /**
  * Create a new access key for Outline server
@@ -27,18 +33,19 @@ export async function createOutlineAccessKey(
   username: string
 ): Promise<string> {
   try {
-    const response = await axios.post<ApiKey>(
+    const response = await axios.post<KeyInfo>(
       BASE_URL + '/access-keys',
-      {},
-{secure: false, headers: {'ContentType': 'application/json' }}
+      {method: "chacha20-ietf-poly1305"},
+{headers: {'ContentType': 'application/json' }}
     );
+    const data = response.data as KeyInfo;
     const users = loadUsers()
     const user = {
       id: users?.length ? users.length +1 : 1,
       username,
-      apiKey: response.data.apiKey,
+      apiKey: data.accessKey,
     }
-    if(save(user)) return response.data.apiKey;
+    if(save(user)) return data.accessKey;
     return 'Error while creating key. This use already exists in database'
   } catch (error) {
     console.error('Error creating Outline access key:', error);
@@ -48,8 +55,8 @@ export async function createOutlineAccessKey(
 
 export async function getAllKeys() {
   try {
-  const data = await axios.get<ApiKey[]>(BASE_URL + '/access-keys')
-  return (data.data as unknown as ApiKey[]).map((k: ApiKey) => k.apiKey)
+  const data = await axios.get<KeyInfo[]>(BASE_URL + '/access-keys')
+  return (data.data as unknown as KeyInfo[]).map((k: KeyInfo) => k.apiKey)
   } catch(err) {
     return err
   }
