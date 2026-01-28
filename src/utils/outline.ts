@@ -35,7 +35,7 @@ export async function createOutlineAccessKey(
     const response = await axios.post<KeyInfo>(
       BASE_URL + '/access-keys',
       {method: "chacha20-ietf-poly1305"},
-{headers: {'ContentType': 'application/json' }}
+{headers: {'Content-Type': 'application/json' }}
     );
     const data = response.data as KeyInfo;
     const users = loadUsers()
