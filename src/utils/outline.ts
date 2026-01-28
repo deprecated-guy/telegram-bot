@@ -3,13 +3,7 @@ import {loadUsers, save} from './database'
 
 const BASE_URL = process.env.API_URL;
 
-const BASE_HTTP = axios.create({
-  baseURL: BASE_URL + '/access-keys',
-    headers: {
-      'Content-Type': 'application/json',
-}
-})
-
+const agent = new https.Agent({ rejectUnauthorized: false });
 export interface User {
   id: number;
   username:string;
@@ -35,7 +29,8 @@ export async function createOutlineAccessKey(
     const response = await axios.post<KeyInfo>(
       BASE_URL + '/access-keys',
       {method: "chacha20-ietf-poly1305"},
-{headers: {'Content-Type': 'application/json' }}
+{
+headers: {'Content-Type': 'application/json'}, httpsAgent: agent}
     );
     const data = response.data as KeyInfo;
     const users = loadUsers()
