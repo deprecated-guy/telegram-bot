@@ -55,7 +55,7 @@ export async function createOutlineAccessKey(
 export async function getAllKeys() {
   try {
   const data = await axios.get<KeyInfo[]>(BASE_URL + '/access-keys')
-  return (data.data as unknown as KeyInfo[]).map((k: KeyInfo) => k.apiKey)
+  return (data.data as unknown as KeyInfo[]).map((k: KeyInfo) => k.accessKey)
   } catch(err) {
     return err
   }
