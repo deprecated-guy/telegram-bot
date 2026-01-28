@@ -21,7 +21,7 @@ export interface KeyInfo {
 port: string;
 name: string;
 password: string;
-method: string:
+method: string;
 accessKey: string;
 }
 /**
