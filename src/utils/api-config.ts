@@ -1,6 +1,5 @@
-import axios from 'axios';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import {join} from 'node:path';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 
 export interface ApiInfo {
   certSha256: string;
@@ -8,91 +7,38 @@ export interface ApiInfo {
 }
 
 
-export async function loadApiUrl(): Promise<ApiInfo> {
-  const accessFileUrl = 'http://localhost/opt/outline/access.txt';
+export function loadApiUrl(): ApiInfo {
+  const filePath = join(process.cwd(), 'access.txt');
 
-  const { data } = await axios.get<string>(accessFileUrl, {
-    responseType: 'text',
-    timeout: 5000,
-  });
+  if (!existsSync(filePath)) {
+    throw new Error(`Access file not found at ${filePath}`);
+  }
 
-  const apiInfo = parseApiInfo(data);
+  const content = readFileSync(filePath, 'utf-8');
 
-  saveApiUrlToEnv(apiInfo.apiUrl);
-
-  process.env.API_URL = apiInfo.apiUrl;
-
-  return apiInfo;
-}
-
-
-function parseApiInfo(content: string): ApiInfo {
   const lines = content
     .split(/\r?\n/)
-    .map(line => line.trim())
+    .map(l => l.trim())
     .filter(Boolean);
 
   if (lines.length < 2) {
-    throw new Error('Invalid access file format: expected 2 lines');
+    throw new Error('Invalid access.txt format: expected at least 2 lines');
   }
 
   const [certSha256, apiUrl] = lines;
 
-  if (!isValidSha256(certSha256)) {
-    throw new Error('Invalid cert sha256 format');
+  if (!/^[a-fA-F0-9]{64}$/.test(certSha256)) {
+    throw new Error('Invalid cert SHA256 in access.txt');
   }
 
-  if (!isValidUrl(apiUrl)) {
-    throw new Error('Invalid API URL format');
-  }
-
-  return {
-    certSha256,
-    apiUrl,
-  };
-}
-
-
-function saveApiUrlToEnv(apiUrl: string): void {
-  const envPath = join(process.cwd(), '.env');
-  const entry = `API_URL=${apiUrl}`;
-
-  
-  if (!existsSync(envPath)) {
-    writeFileSync(envPath, entry + '\n', 'utf-8');
-    return;
-  }
-
-  const content = readFileSync(envPath, 'utf-8');
-
-  
-  if (/^API_URL=/m.test(content)) {
-    const updated = content.replace(
-      /^API_URL=.*$/m,
-      entry
-    );
-    writeFileSync(updated, envPath, 'utf-8');
-  } else {
-    
-    writeFileSync(
-      content.trimEnd() + '\n' + entry + '\n',
-      envPath,
-      'utf-8'
-    );
-  }
-}
-
-
-function isValidSha256(value: string): boolean {
-  return /^[a-fA-F0-9]{64}$/.test(value);
-}
-
-
-function isValidUrl(value: string): boolean {
   try {
-    new URL(value);
-    return true;
+    new URL(apiUrl);
   } catch {
-    return false;
+    throw new Error('Invalid API URL in access.txt');
   }
+
+  // Сохраняем в process.env.API_URL для удобства
+  process.env.API_URL = apiUrl;
+
+  return { certSha256, apiUrl };
 }
