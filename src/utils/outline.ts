@@ -18,7 +18,7 @@ port: string;
 name: string;
 password: string;
 method: string;
-accessKey: string;
+accessUrl: string;
 }
 /**
  * Create a new access key for Outline server
@@ -39,9 +39,9 @@ headers: {'Content-Type': 'application/json'}, httpsAgent: agent}
     const user = {
       id: users?.length ? users.length +1 : 1,
       username,
-      apiKey: data.accessKey,
+      apiKey: data.accessUrl,
     }
-    if(save(user)) return data.accessKey;
+    if(save(user)) return data.accessUrl;
     return 'Error while creating key. This use already exists in database'
   } catch (error) {
     console.error('Error creating Outline access key:', error);
@@ -52,7 +52,7 @@ headers: {'Content-Type': 'application/json'}, httpsAgent: agent}
 export async function getAllKeys() {
   try {
   const data = await axios.get<KeyInfo[]>(BASE_URL + '/access-keys')
-  return (data.data as unknown as KeyInfo[]).map((k: KeyInfo) => k.accessKey)
+  return (data.data as unknown as KeyInfo[]).map((k: KeyInfo) => k.accessUrl)
   } catch(err) {
     return err
   }
