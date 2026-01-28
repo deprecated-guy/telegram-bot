@@ -13,9 +13,10 @@ import { CALLBACK_DATA, BUTTONS } from './utils/buttons';
 import { loadUsers } from './utils/database';
 import dotenv from 'dotenv';
 import {loadApiUrl} from './utils/api-config';
-
+import {ensureDbExists} from './utils/database';
 dotenv.config();
 
+ensureDbExists();
 // Session type for managing conversation state
 interface SessionData {
   creatingOutlineKey: boolean;
