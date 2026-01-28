@@ -9,7 +9,7 @@ export interface ApiInfo {
 
 
 export async function loadApiUrl(): Promise<ApiInfo> {
-  const accessFileUrl = '/opt/outline/access.txt';
+  const accessFileUrl = 'localhost/opt/outline/access.txt';
 
   const { data } = await axios.get<string>(accessFileUrl, {
     responseType: 'text',
