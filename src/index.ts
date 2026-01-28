@@ -12,6 +12,7 @@ import { createOutlineAccessKey } from './utils/outline';
 import { CALLBACK_DATA, BUTTONS } from './utils/buttons';
 import { loadUsers } from './utils/database';
 import dotenv from 'dotenv';
+import {loadApiUrl} from './utils/api-config';
 
 dotenv.config();
 
@@ -27,7 +28,7 @@ const bot = new Bot<BotContext>(process.env.BOT_TOKEN || '');
 
 // Session middleware
 bot.use(session({ initial: () => ({ creatingOutlineKey: false }) }));
-
+loadApiUrl();
 // Start command - show main menu
 bot.command('start', async (ctx) => {
   await showMainMenu(ctx);
