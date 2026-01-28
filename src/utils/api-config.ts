@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-
+import {join} from 'node:path';
 
 export interface ApiInfo {
   certSha256: string;
@@ -54,7 +54,7 @@ function parseApiInfo(content: string): ApiInfo {
 
 
 function saveApiUrlToEnv(apiUrl: string): void {
-  const envPath = '.env';
+  const envPath = join(process.cwd(), '.env');
   const entry = `API_URL=${apiUrl}`;
 
   
