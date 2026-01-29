@@ -106,6 +106,50 @@ export async function startOutlineKeyCreation(ctx: BotContext): Promise<void> {
   ctx.session.creatingOutlineKey = true;
 }
 
+export async function handleShowKey(ctx: BotContext) {
+  const action = ctx.callbackQuery?.data;
+  if (!action || !action.startsWith('show_key:')) return;
+
+  const parts = action.split(':');
+  const id = Number(parts[1]);
+
+  const users = loadUsers() ?? [];
+  const user = users.find(u => Number(u.id) === id);
+
+  if (!user) {
+    await ctx.answerCallbackQuery('❌ Key not found');
+    return;
+  }
+
+  // Отправляем сообщение с ключом под спойлером
+  const msg = await ctx.reply(
+    `🔑 <b>Outline Access Key for ${user.username}</b>\n\n` +
+      `<tg-spoiler><code>${user.apiKey}</code></tg-spoiler>`,
+    {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🗑 Delete', callback_data: `delete_key_msg:${ctx.from?.id}` }],
+        ],
+      },
+    }
+  );
+
+  await ctx.answerCallbackQuery('Key revealed! Tap code to copy.');
+}
+
+export async function handleDeleteKeyMsg(ctx: BotContext) {
+  const action = ctx.callbackQuery?.data;
+  if (!action || !action.startsWith('delete_key_msg')) return;
+
+  try {
+    await ctx.deleteMessage();
+    await ctx.answerCallbackQuery('🧹 Message deleted');
+  } catch {
+    await ctx.answerCallbackQuery('❌ Failed to delete');
+  }
+}
+
 export async function listOutlineKeys(ctx: BotContext): Promise<void> {
   const users = loadUsers() ?? [];
 
