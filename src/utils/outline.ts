@@ -24,13 +24,13 @@ accessUrl: string;
  * Create a new access key for Outline server
  */
 export async function createOutlineAccessKey(
-  name: string,
-  username: string
+  username: string,
+method: string
 ): Promise<string> {
   try {
     const response = await axios.post<KeyInfo>(
       BASE_URL + '/access-keys',
-      {method: "chacha20-ietf-poly1305"},
+      {method, name: username},
 {
 headers: {'Content-Type': 'application/json'}, httpsAgent: agent}
     );
