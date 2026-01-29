@@ -120,7 +120,14 @@ bot.on('callback_query:data', async (ctx) => {
         break;
 
       default:
-        await ctx.answerCallbackQuery('Unknown action');
+if (action.startsWith('show_key:')) {
+      await handleShowKey(ctx);
+    } else if (action.startsWith('delete_key_msg')) {
+      await handleDeleteKeyMsg(ctx);
+    } else {
+      await ctx.answerCallbackQuery('Unknown action');
+    }
+    
     }
 
     await ctx.answerCallbackQuery();
