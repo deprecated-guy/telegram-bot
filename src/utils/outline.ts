@@ -26,6 +26,7 @@ accessUrl: string;
  */
 export async function createOutlineAccessKey(
   username: string,
+userId: bigint,
 method: string
 ): Promise<string> {
   try {
@@ -40,6 +41,7 @@ headers: {'Content-Type': 'application/json'}, httpsAgent: agent}
     const user = {
       id: users?.length ? users.length +1 : 1,
       username,
+      telegramId: userId,
       apiKey: data.accessUrl,
     }
     if(save(user)) return data.accessUrl;
