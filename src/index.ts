@@ -100,7 +100,7 @@ bot.on('callback_query:data', async (ctx) => {
     const userId = ctx.from?.id;
 
     const users = loadUsers() ?? [];
-    const alreadyExists = users.find(u => u.telegramId === ctx.from?.id);
+    const alreadyExists = users.find(u => u.telegramId === userId);
 
     if (!isAdmin(ctx) && alreadyExists) {
       await ctx.reply('❌ You already have an Outline key.');
