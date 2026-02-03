@@ -74,7 +74,7 @@ bot.on('callback_query:data', async (ctx) => {
     const users = loadUsers() ?? [];
     const owner = users.find(u => Number(u.telegramId) === keyOwnerId);
 
-    if (!owner || !owner.telegramId) {
+    if (!owner) {
       await ctx.answerCallbackQuery('❌ User not found');
       return;
     }
@@ -97,7 +97,7 @@ bot.on('callback_query:data', async (ctx) => {
   if (action.startsWith('select_cipher:') && ctx.session.creatingOutlineKey) {
     const cipher = action.split(':')[1];
     const username = ctx.from?.username || `user_${ctx.from?.id}`;
-    const userId = ctx.from?.id;
+    const userId = ctx.from?.id ?? 0;
 
     const users = loadUsers() ?? [];
     const alreadyExists = users.find(u => u.telegramId === userId);
