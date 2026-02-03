@@ -12,54 +12,30 @@ import { createOutlineAccessKey } from './utils/outline';
 import { CALLBACK_DATA, BUTTONS } from './utils/buttons';
 import { loadUsers } from './utils/database';
 import dotenv from 'dotenv';
-import {loadApiUrl} from './utils/api-config';
-import {ensureDbExists} from './utils/database';
-dotenv.config();
+import { ensureDbExists } from './utils/database';
 
+dotenv.config();
 ensureDbExists();
 
-// Session type for managing conversation state
+// ================= SESSION =================
+
 interface SessionData {
   creatingOutlineKey: boolean;
-  keyName?: string; // временное хранение названия ключа
+  keyName?: string;
 }
 
 type BotContext = Context & SessionFlavor<SessionData>;
 
-// Initialize bot with token from environment
 const bot = new Bot<BotContext>(process.env.BOT_TOKEN || '');
 
-// Session middleware
-bot.use(session({ initial: () => ({ }) }));
+bot.use(session({ initial: () => ({ creatingOutlineKey: false }) }));
 
-// Start command - show main menu
-bot.command('start', async (ctx) => {
-  await showMainMenu(ctx);
-});
+// ================= UTILS =================
 
-// Admin command - show admin menu
-bot.command('admin', async (ctx) => {
-  await showAdminMenu(ctx);
-});
+const ADMIN_ID = Number(process.env.ADMIN_ID);
 
-// Help command
-bot.command('help', async (ctx) => {
-  await showHelp(ctx);
-});
+const isAdmin = (ctx: BotContext) => ctx.from?.id === ADMIN_ID;
 
-// About command
-bot.command('about', async (ctx) => {
-  await showAbout(ctx);
-});
-
-// Cancel command
-bot.command('cancel', async (ctx) => {
-  ctx.session.creatingOutlineKey = false;
-  delete ctx.session.keyName;
-  await ctx.reply('❌ Operation cancelled.');
-});
-
-// Supported Outline encryptions
 const OUTLINE_CIPHERS = [
   'aes-128-gcm',
   'aes-256-gcm',
@@ -67,117 +43,108 @@ const OUTLINE_CIPHERS = [
   'xchacha20-ietf-poly1305',
 ];
 
-// Callback query handlers
+// ================= COMMANDS =================
+
+bot.command('start', showMainMenu);
+bot.command('help', showHelp);
+bot.command('about', showAbout);
+
+bot.command('admin', async (ctx) => {
+  if (!isAdmin(ctx)) {
+    await ctx.reply('⛔ Access denied');
+    return;
+  }
+  await showAdminMenu(ctx);
+});
+
+bot.command('cancel', async (ctx) => {
+  ctx.session.creatingOutlineKey = false;
+  delete ctx.session.keyName;
+  await ctx.reply('❌ Operation cancelled.');
+});
+
+// ================= CALLBACKS =================
+
 bot.on('callback_query:data', async (ctx) => {
   const action = ctx.callbackQuery.data;
 
-  // Show full key in popup
-  if (action && action.startsWith('show_key:')) {
-    const id = Number(action.split(':')[1]);
+  // ===== COPY KEY (SEND TO OWNER) =====
+  if (action.startsWith('send_key:')) {
+    const keyOwnerId = Number(action.split(':')[1]);
     const users = loadUsers() ?? [];
-    const user = users.find(u => Number(u.id) === id);
-    if (user) {
-      await ctx.answerCallbackQuery({ text: `Access key for ${user.username}: ${user.apiKey}`, show_alert: true });
-    } else {
-      await ctx.answerCallbackQuery('Key not found');
-    }
-    return;
-  }
+    const owner = users.find(u => Number(u.telegramId) === keyOwnerId);
 
-  // Send key as separate message (Copy button)
-  if (action && action.startsWith('send_key_to_user:')) {
-    const id = Number(action.split(':')[1]);
-    const users = loadUsers() ?? [];
-    const user = users.find(u => Number(u.id) === id);
-    if (user) {
-      await ctx.reply(`Here is your full Outline key:\n\n<code>${user.apiKey}</code>`, { parse_mode: 'HTML' });
-    } else {
-      await ctx.answerCallbackQuery('Key not found');
-    }
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  // Handle cipher selection
-  if (action && action.startsWith('select_cipher:') && ctx.session.creatingOutlineKey) {
-    const cipher = action.split(':')[1];
-    const keyName = ctx.session.keyName!;
-    const username = ctx.from?.username || `user_${ctx.from?.id}`;
-    const userId = ctx.from?.id;
-
-    // Проверяем, есть ли уже ключ у пользователя (если не админ)
-    const users = loadUsers() ?? [];
-    const isAdmin = userId && process.env.ADMIN_ID && BigInt(process.env.ADMIN_ID) === BigInt(userId);
-    const existingUser = users.find(u => u.username === username);
-
-    if (existingUser && !isAdmin) {
-      await ctx.reply('❌ You already have an Outline key. Only one key per user is allowed.');
-      ctx.session.creatingOutlineKey = false;
-      delete ctx.session.keyName;
-      await ctx.answerCallbackQuery();
+    if (!owner || !owner.telegramId) {
+      await ctx.answerCallbackQuery('❌ User not found');
       return;
     }
 
     try {
-      await ctx.reply('⏳ Creating Outline access key with selected encryption...');
-      const apiKey = await createOutlineAccessKey(username, cipher);
-
-      const saved = loadUsers().find(u => u.username === username);
-      const masked = apiKey ? `${apiKey.slice(0,6)}...${apiKey.slice(-6)}` : 'N/A';
-
-      const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
-      if (saved) keyboard.push([{ text: '📋 Copy key', callback_data: `send_key_to_user:${saved.id}` }]);
-      keyboard.push(...BUTTONS.backToOutlineMenu());
-
-      await ctx.reply(
-        `✅ <b>Outline Access Key Created Successfully!</b>\n\n` +
-          `<b>Key Name:</b> ${keyName}\n` +
-          `<b>Encryption:</b> ${cipher}\n` +
-          `<b>API Key:</b> <code>${masked}</code>\n\n` +
-          `Click the button below to view and copy the full key.`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: keyboard },
-        }
+      await ctx.api.sendMessage(
+        owner.telegramId,
+        `🔐 <b>Вот твой ключ:</b>\n\n<code>${owner.apiKey}</code>`,
+        { parse_mode: 'HTML' }
       );
+      await ctx.answerCallbackQuery('✅ Key sent to user');
+    } catch (err) {
+      console.error(err);
+      await ctx.answerCallbackQuery('❌ Failed to send key');
+    }
+    return;
+  }
 
+  // ===== SELECT CIPHER =====
+  if (action.startsWith('select_cipher:') && ctx.session.creatingOutlineKey) {
+    const cipher = action.split(':')[1];
+    const username = ctx.from?.username || `user_${ctx.from?.id}`;
+    const userId = ctx.from?.id;
+
+    const users = loadUsers() ?? [];
+    const alreadyExists = users.find(u => u.telegramId === ctx.from?.id);
+
+    if (!isAdmin(ctx) && alreadyExists) {
+      await ctx.reply('❌ You already have an Outline key.');
       ctx.session.creatingOutlineKey = false;
-      delete ctx.session.keyName;
-    } catch (error) {
-      console.error('Error creating access key:', error);
-      await ctx.reply('❌ Error creating access key. Please try again.', {
-        reply_markup: { inline_keyboard: BUTTONS.backToOutlineMenu() },
-      });
-      ctx.session.creatingOutlineKey = false;
-      delete ctx.session.keyName;
+      return;
     }
 
+    try {
+      const apiKey = await createOutlineAccessKey(username, userId, cipher);
+      await ctx.reply(
+        `✅ <b>Key created</b>\n\n<code>${apiKey}</code>`,
+        { parse_mode: 'HTML' }
+      );
+    } catch (err) {
+      console.error(err);
+      await ctx.reply('❌ Error creating key');
+    }
+
+    ctx.session.creatingOutlineKey = false;
+    delete ctx.session.keyName;
     await ctx.answerCallbackQuery();
     return;
   }
 
-  // Other callbacks
+  // ===== MENU ROUTING =====
   try {
     switch (action) {
       case CALLBACK_DATA.MAIN_MENU:
       case CALLBACK_DATA.BACK:
         await showMainMenu(ctx);
         break;
+
       case CALLBACK_DATA.ADMIN_MENU:
         await showAdminMenu(ctx);
         break;
-      case CALLBACK_DATA.HELP:
-        await showHelp(ctx);
-        break;
-      case CALLBACK_DATA.ABOUT:
-        await showAbout(ctx);
-        break;
+
       case CALLBACK_DATA.ADMIN_SERVER_INFO:
         await handleServerInfo(ctx);
         break;
+
       case CALLBACK_DATA.ADMIN_OUTLINE_KEYS:
         await handleOutlineKeys(ctx);
         break;
+
       case CALLBACK_DATA.ADMIN_API_INFO:
         await handleAPIInfo(ctx, {
           environment: process.env.NODE_ENV || 'development',
@@ -186,52 +153,52 @@ bot.on('callback_query:data', async (ctx) => {
           adminIds: [BigInt(process.env.ADMIN_ID || '0')],
         });
         break;
+
       case CALLBACK_DATA.OUTLINE_CREATE_KEY:
-        await startOutlineKeyCreation(ctx);
+        ctx.session.creatingOutlineKey = true;
+        await ctx.reply('✏️ Enter key name:');
         break;
+
       case CALLBACK_DATA.OUTLINE_LIST_KEYS:
         await listOutlineKeys(ctx);
         break;
+
       default:
         await ctx.answerCallbackQuery('Unknown action');
     }
 
     await ctx.answerCallbackQuery();
-  } catch (error) {
-    console.error('Error handling callback query:', error);
-    await ctx.answerCallbackQuery('An error occurred');
+  } catch (err) {
+    console.error(err);
+    await ctx.answerCallbackQuery('Error');
   }
 });
 
-// Message handler for creating Outline keys
+// ================= MESSAGE =================
+
 bot.on('message:text', async (ctx) => {
   if (ctx.session.creatingOutlineKey && !ctx.session.keyName) {
-    const keyName = ctx.message.text;
-    ctx.session.keyName = keyName;
+    ctx.session.keyName = ctx.message.text;
 
-    // Show encryption selection menu
-    const keyboard = OUTLINE_CIPHERS.map(cipher => [
-      { text: cipher, callback_data: `select_cipher:${cipher}` },
+    const keyboard = OUTLINE_CIPHERS.map(c => [
+      { text: c, callback_data: `select_cipher:${c}` },
     ]);
-    keyboard.push([{ text: 'Skip (use chacha)', callback_data: 'select_cipher:chacha20-ietf-poly1305' }]);
 
-    await ctx.reply('🔐 Choose encryption for your Outline key:', {
+    await ctx.reply('🔐 Choose encryption:', {
       reply_markup: { inline_keyboard: keyboard },
     });
     return;
   }
 
-  await ctx.reply('👋 Hello! Use /start to open the main menu or /help for available commands.');
+  await ctx.reply('Use /start');
 });
 
-// Error handler
-bot.catch((error) => {
-  console.error('Bot error:', error);
-});
+// ================= START =================
 
-// Start the bot
+bot.catch(console.error);
+
 bot.start({
-  onStart: async (botInfo) => {
-    console.log(`✅ Bot started: @${botInfo.username}`);
+  onStart: (info) => {
+    console.log(`🤖 Bot started: @${info.username}`);
   },
 });
