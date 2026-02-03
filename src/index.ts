@@ -28,7 +28,7 @@ type BotContext = Context & SessionFlavor<SessionData>;
 
 const bot = new Bot<BotContext>(process.env.BOT_TOKEN || '');
 
-bot.use(session({ initial: () => ({ creatingOutlineKey: false }) }));
+bot.use(session({ initial: () => ({ }) }));
 
 // ================= UTILS =================
 
