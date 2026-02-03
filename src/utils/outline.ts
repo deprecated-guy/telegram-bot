@@ -26,7 +26,7 @@ accessUrl: string;
  */
 export async function createOutlineAccessKey(
   username: string,
-userId: bigint,
+userId: number,
 method: string
 ): Promise<string> {
   try {
