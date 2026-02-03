@@ -71,10 +71,9 @@ const OUTLINE_CIPHERS = [
 bot.on('callback_query:data', async (ctx) => {
   const action = ctx.callbackQuery.data;
 
-  // Handle per-key show request: show_key:<id>
+  // Show full key in popup
   if (action && action.startsWith('show_key:')) {
-    const parts = action.split(':');
-    const id = Number(parts[1]);
+    const id = Number(action.split(':')[1]);
     const users = loadUsers() ?? [];
     const user = users.find(u => Number(u.id) === id);
     if (user) {
@@ -82,7 +81,20 @@ bot.on('callback_query:data', async (ctx) => {
     } else {
       await ctx.answerCallbackQuery('Key not found');
     }
+    return;
+  }
 
+  // Send key as separate message (Copy button)
+  if (action && action.startsWith('send_key_to_user:')) {
+    const id = Number(action.split(':')[1]);
+    const users = loadUsers() ?? [];
+    const user = users.find(u => Number(u.id) === id);
+    if (user) {
+      await ctx.reply(`Here is your full Outline key:\n\n<code>${user.apiKey}</code>`, { parse_mode: 'HTML' });
+    } else {
+      await ctx.answerCallbackQuery('Key not found');
+    }
+    await ctx.answerCallbackQuery();
     return;
   }
 
@@ -91,17 +103,30 @@ bot.on('callback_query:data', async (ctx) => {
     const cipher = action.split(':')[1];
     const keyName = ctx.session.keyName!;
     const username = ctx.from?.username || `user_${ctx.from?.id}`;
+    const userId = ctx.from?.id;
+
+    // Проверяем, есть ли уже ключ у пользователя (если не админ)
+    const users = loadUsers() ?? [];
+    const isAdmin = userId && process.env.ADMIN_ID && BigInt(process.env.ADMIN_ID) === BigInt(userId);
+    const existingUser = users.find(u => u.username === username);
+
+    if (existingUser && !isAdmin) {
+      await ctx.reply('❌ You already have an Outline key. Only one key per user is allowed.');
+      ctx.session.creatingOutlineKey = false;
+      delete ctx.session.keyName;
+      await ctx.answerCallbackQuery();
+      return;
+    }
 
     try {
       await ctx.reply('⏳ Creating Outline access key with selected encryption...');
       const apiKey = await createOutlineAccessKey(username, cipher);
 
-      const users = loadUsers() ?? [];
-      const saved = users.find(u => u.username === username);
+      const saved = loadUsers().find(u => u.username === username);
       const masked = apiKey ? `${apiKey.slice(0,6)}...${apiKey.slice(-6)}` : 'N/A';
 
       const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
-      if (saved) keyboard.push([{ text: '📋 Copy key', callback_data: `show_key:${saved.id}` }]);
+      if (saved) keyboard.push([{ text: '📋 Copy key', callback_data: `send_key_to_user:${saved.id}` }]);
       keyboard.push(...BUTTONS.backToOutlineMenu());
 
       await ctx.reply(
@@ -131,33 +156,28 @@ bot.on('callback_query:data', async (ctx) => {
     return;
   }
 
+  // Other callbacks
   try {
     switch (action) {
       case CALLBACK_DATA.MAIN_MENU:
       case CALLBACK_DATA.BACK:
         await showMainMenu(ctx);
         break;
-
       case CALLBACK_DATA.ADMIN_MENU:
         await showAdminMenu(ctx);
         break;
-
       case CALLBACK_DATA.HELP:
         await showHelp(ctx);
         break;
-
       case CALLBACK_DATA.ABOUT:
         await showAbout(ctx);
         break;
-
       case CALLBACK_DATA.ADMIN_SERVER_INFO:
         await handleServerInfo(ctx);
         break;
-
       case CALLBACK_DATA.ADMIN_OUTLINE_KEYS:
         await handleOutlineKeys(ctx);
         break;
-
       case CALLBACK_DATA.ADMIN_API_INFO:
         await handleAPIInfo(ctx, {
           environment: process.env.NODE_ENV || 'development',
@@ -166,23 +186,14 @@ bot.on('callback_query:data', async (ctx) => {
           adminIds: [BigInt(process.env.ADMIN_ID || '0')],
         });
         break;
-
       case CALLBACK_DATA.OUTLINE_CREATE_KEY:
         await startOutlineKeyCreation(ctx);
         break;
-
       case CALLBACK_DATA.OUTLINE_LIST_KEYS:
         await listOutlineKeys(ctx);
         break;
-
       default:
-        if (action.startsWith('show_key:')) {
-          await handleShowKey(ctx);
-        } else if (action.startsWith('delete_key_msg')) {
-          await handleDeleteKeyMsg(ctx);
-        } else {
-          await ctx.answerCallbackQuery('Unknown action');
-        }
+        await ctx.answerCallbackQuery('Unknown action');
     }
 
     await ctx.answerCallbackQuery();
@@ -194,7 +205,6 @@ bot.on('callback_query:data', async (ctx) => {
 
 // Message handler for creating Outline keys
 bot.on('message:text', async (ctx) => {
-  // Step 1: user enters key name
   if (ctx.session.creatingOutlineKey && !ctx.session.keyName) {
     const keyName = ctx.message.text;
     ctx.session.keyName = keyName;
@@ -211,7 +221,6 @@ bot.on('message:text', async (ctx) => {
     return;
   }
 
-  // Default message handler
   await ctx.reply('👋 Hello! Use /start to open the main menu or /help for available commands.');
 });
 
