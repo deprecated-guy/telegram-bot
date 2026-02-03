@@ -18,22 +18,17 @@ dotenv.config();
 ensureDbExists();
 
 // ================= SESSION =================
-
 interface SessionData {
   creatingOutlineKey: boolean;
   keyName?: string;
 }
 
 type BotContext = Context & SessionFlavor<SessionData>;
-
 const bot = new Bot<BotContext>(process.env.BOT_TOKEN || '');
-
-bot.use(session({ initial: () => ({ }) }));
+bot.use(session({ initial: () => ({ creatingOutlineKey: false }) }));
 
 // ================= UTILS =================
-
 const ADMIN_ID = Number(process.env.ADMIN_ID);
-
 const isAdmin = (ctx: BotContext) => ctx.from?.id === ADMIN_ID;
 
 const OUTLINE_CIPHERS = [
@@ -44,8 +39,18 @@ const OUTLINE_CIPHERS = [
 ];
 
 // ================= COMMANDS =================
-
-bot.command('start', showMainMenu);
+bot.command('start', async (ctx) => {
+  if (isAdmin(ctx)) {
+    await showAdminMenu(ctx);
+  } else {
+    // обычный пользователь видит только кнопку Create Key
+    await ctx.reply('👋 Welcome! Click to create your Outline key:', {
+      reply_markup: {
+        inline_keyboard: [[{ text: 'Create Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }]],
+      },
+    });
+  }
+});
 bot.command('help', showHelp);
 bot.command('about', showAbout);
 
@@ -64,12 +69,12 @@ bot.command('cancel', async (ctx) => {
 });
 
 // ================= CALLBACKS =================
-
 bot.on('callback_query:data', async (ctx) => {
   const action = ctx.callbackQuery.data;
+  const userId = ctx.from?.id ?? 0;
 
   // ===== COPY KEY (SEND TO OWNER) =====
-  if (action.startsWith('send_key:')) {
+  if (action?.startsWith('send_key:')) {
     const keyOwnerId = Number(action.split(':')[1]);
     const users = loadUsers() ?? [];
     const owner = users.find(u => Number(u.telegramId) === keyOwnerId);
@@ -94,10 +99,9 @@ bot.on('callback_query:data', async (ctx) => {
   }
 
   // ===== SELECT CIPHER =====
-  if (action.startsWith('select_cipher:') && ctx.session.creatingOutlineKey) {
+  if (action?.startsWith('select_cipher:') && ctx.session.creatingOutlineKey) {
     const cipher = action.split(':')[1];
-    const username = ctx.from?.username || `user_${ctx.from?.id}`;
-    const userId = ctx.from?.id ?? 0;
+    const username = ctx.from?.username || `user_${userId}`;
 
     const users = loadUsers() ?? [];
     const alreadyExists = users.find(u => u.telegramId === userId);
@@ -111,7 +115,7 @@ bot.on('callback_query:data', async (ctx) => {
     try {
       const apiKey = await createOutlineAccessKey(username, userId, cipher);
       await ctx.reply(
-        `✅ <b>Key created</b>\n\n<code>${apiKey}</code>`,
+        `✅ <b>Your Outline key has been created!</b>\n\n<code>${apiKey}</code>`,
         { parse_mode: 'HTML' }
       );
     } catch (err) {
@@ -130,7 +134,16 @@ bot.on('callback_query:data', async (ctx) => {
     switch (action) {
       case CALLBACK_DATA.MAIN_MENU:
       case CALLBACK_DATA.BACK:
-        await showMainMenu(ctx);
+        if (isAdmin(ctx)) {
+          await showAdminMenu(ctx);
+        } else {
+          // обычный пользователь видит только Create Key
+          await ctx.reply('👋 Click to create your Outline key:', {
+            reply_markup: {
+              inline_keyboard: [[{ text: 'Create Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }]],
+            },
+          });
+        }
         break;
 
       case CALLBACK_DATA.ADMIN_MENU:
@@ -156,7 +169,7 @@ bot.on('callback_query:data', async (ctx) => {
 
       case CALLBACK_DATA.OUTLINE_CREATE_KEY:
         ctx.session.creatingOutlineKey = true;
-        await ctx.reply('✏️ Enter key name:');
+        await ctx.reply('✏️ Enter a name for your Outline key:');
         break;
 
       case CALLBACK_DATA.OUTLINE_LIST_KEYS:
@@ -175,16 +188,17 @@ bot.on('callback_query:data', async (ctx) => {
 });
 
 // ================= MESSAGE =================
-
 bot.on('message:text', async (ctx) => {
   if (ctx.session.creatingOutlineKey && !ctx.session.keyName) {
     ctx.session.keyName = ctx.message.text;
 
-    const keyboard = OUTLINE_CIPHERS.map(c => [
+    const keyboard = OUTLINE_CIPHERS.map((c) => [
       { text: c, callback_data: `select_cipher:${c}` },
     ]);
 
-    await ctx.reply('🔐 Choose encryption:', {
+    keyboard.push([{ text: 'Skip (use chacha)', callback_data: 'select_cipher:chacha20-ietf-poly1305' }]);
+
+    await ctx.reply('🔐 Choose encryption for your key:', {
       reply_markup: { inline_keyboard: keyboard },
     });
     return;
@@ -194,7 +208,6 @@ bot.on('message:text', async (ctx) => {
 });
 
 // ================= START =================
-
 bot.catch(console.error);
 
 bot.start({
