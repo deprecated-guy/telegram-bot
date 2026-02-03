@@ -17,9 +17,11 @@ import {ensureDbExists} from './utils/database';
 dotenv.config();
 
 ensureDbExists();
+
 // Session type for managing conversation state
 interface SessionData {
   creatingOutlineKey: boolean;
+  keyName?: string; // временное хранение названия ключа
 }
 
 type BotContext = Context & SessionFlavor<SessionData>;
@@ -53,14 +55,23 @@ bot.command('about', async (ctx) => {
 // Cancel command
 bot.command('cancel', async (ctx) => {
   ctx.session.creatingOutlineKey = false;
+  delete ctx.session.keyName;
   await ctx.reply('❌ Operation cancelled.');
 });
+
+// Supported Outline encryptions
+const OUTLINE_CIPHERS = [
+  'aes-128-gcm',
+  'aes-256-gcm',
+  'chacha20-ietf-poly1305',
+  'xchacha20-ietf-poly1305',
+];
 
 // Callback query handlers
 bot.on('callback_query:data', async (ctx) => {
   const action = ctx.callbackQuery.data;
 
-  // handle per-key show request: show_key:<id>
+  // Handle per-key show request: show_key:<id>
   if (action && action.startsWith('show_key:')) {
     const parts = action.split(':');
     const id = Number(parts[1]);
@@ -72,6 +83,51 @@ bot.on('callback_query:data', async (ctx) => {
       await ctx.answerCallbackQuery('Key not found');
     }
 
+    return;
+  }
+
+  // Handle cipher selection
+  if (action && action.startsWith('select_cipher:') && ctx.session.creatingOutlineKey) {
+    const cipher = action.split(':')[1];
+    const keyName = ctx.session.keyName!;
+    const username = ctx.from?.username || `user_${ctx.from?.id}`;
+
+    try {
+      await ctx.reply('⏳ Creating Outline access key with selected encryption...');
+      const apiKey = await createOutlineAccessKey(cipher, username);
+
+      const users = loadUsers() ?? [];
+      const saved = users.find(u => u.username === username);
+      const masked = apiKey ? `${apiKey.slice(0,6)}...${apiKey.slice(-6)}` : 'N/A';
+
+      const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+      if (saved) keyboard.push([{ text: '📋 Copy key', callback_data: `show_key:${saved.id}` }]);
+      keyboard.push(...BUTTONS.backToOutlineMenu());
+
+      await ctx.reply(
+        `✅ <b>Outline Access Key Created Successfully!</b>\n\n` +
+          `<b>Key Name:</b> ${keyName}\n` +
+          `<b>Encryption:</b> ${cipher}\n` +
+          `<b>API Key:</b> <code>${masked}</code>\n\n` +
+          `Click the button below to view and copy the full key.`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: keyboard },
+        }
+      );
+
+      ctx.session.creatingOutlineKey = false;
+      delete ctx.session.keyName;
+    } catch (error) {
+      console.error('Error creating access key:', error);
+      await ctx.reply('❌ Error creating access key. Please try again.', {
+        reply_markup: { inline_keyboard: BUTTONS.backToOutlineMenu() },
+      });
+      ctx.session.creatingOutlineKey = false;
+      delete ctx.session.keyName;
+    }
+
+    await ctx.answerCallbackQuery();
     return;
   }
 
@@ -120,14 +176,13 @@ bot.on('callback_query:data', async (ctx) => {
         break;
 
       default:
-if (action.startsWith('show_key:')) {
-      await handleShowKey(ctx);
-    } else if (action.startsWith('delete_key_msg')) {
-      await handleDeleteKeyMsg(ctx);
-    } else {
-      await ctx.answerCallbackQuery('Unknown action');
-    }
-    
+        if (action.startsWith('show_key:')) {
+          await handleShowKey(ctx);
+        } else if (action.startsWith('delete_key_msg')) {
+          await handleDeleteKeyMsg(ctx);
+        } else {
+          await ctx.answerCallbackQuery('Unknown action');
+        }
     }
 
     await ctx.answerCallbackQuery();
@@ -139,55 +194,25 @@ if (action.startsWith('show_key:')) {
 
 // Message handler for creating Outline keys
 bot.on('message:text', async (ctx) => {
-  if (ctx.session.creatingOutlineKey) {
+  // Step 1: user enters key name
+  if (ctx.session.creatingOutlineKey && !ctx.session.keyName) {
     const keyName = ctx.message.text;
-    const username = ctx.from?.username || `user_${ctx.from?.id}`;
+    ctx.session.keyName = keyName;
 
-    try {
-      await ctx.reply('⏳ Creating Outline access key...');
-      const apiKey = await createOutlineAccessKey(keyName, username);
+    // Show encryption selection menu
+    const keyboard = OUTLINE_CIPHERS.map(cipher => [
+      { text: cipher, callback_data: `select_cipher:${cipher}` },
+    ]);
+    keyboard.push([{ text: 'Skip (use chacha)', callback_data: 'select_cipher:chacha20-ietf-poly1305' }]);
 
-      // find saved user to get id
-      const users = loadUsers() ?? [];
-      const saved = users.find(u => u.username === username);
-      const masked = apiKey ? `${apiKey.slice(0,6)}...${apiKey.slice(-6)}` : 'N/A';
-
-      const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
-      if (saved) {
-        keyboard.push([{ text: '📋 Copy key', callback_data: `show_key:${saved.id}` }]);
-      }
-      keyboard.push(...BUTTONS.backToOutlineMenu());
-
-      await ctx.reply(
-        `✅ <b>Outline Access Key Created Successfully!</b>\n\n` +
-          `<b>Key Name:</b> ${keyName}\n` +
-          `<b>API Key:</b> <code>${masked}</code>\n\n` +
-          `Click the button below to view and copy the full key.`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: keyboard,
-          },
-        }
-      );
-
-      ctx.session.creatingOutlineKey = false;
-    } catch (error) {
-      console.error('Error creating access key:', error);
-      await ctx.reply(
-        '❌ Error creating access key. Please try again.',
-        {
-          reply_markup: {
-            inline_keyboard: BUTTONS.backToOutlineMenu(),
-          },
-        }
-      );
-      ctx.session.creatingOutlineKey = false;
-    }
-  } else {
-    // Default message handler
-    await ctx.reply('👋 Hello! Use /start to open the main menu or /help for available commands.');
+    await ctx.reply('🔐 Choose encryption for your Outline key:', {
+      reply_markup: { inline_keyboard: keyboard },
+    });
+    return;
   }
+
+  // Default message handler
+  await ctx.reply('👋 Hello! Use /start to open the main menu or /help for available commands.');
 });
 
 // Error handler
