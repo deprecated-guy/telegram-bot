@@ -94,7 +94,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     try {
       await ctx.reply('⏳ Creating Outline access key with selected encryption...');
-      const apiKey = await createOutlineAccessKey(cipher, username);
+      const apiKey = await createOutlineAccessKey(username, cipher);
 
       const users = loadUsers() ?? [];
       const saved = users.find(u => u.username === username);
