@@ -8,6 +8,7 @@ const BASE_URL = process.env.API_URL;
 const agent = new https.Agent({ rejectUnauthorized: false });
 export interface User {
   id: number;
+  telegramId: bigint;
   username:string;
   apiKey: string;
 }
