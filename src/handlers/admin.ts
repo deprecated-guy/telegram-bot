@@ -1,4 +1,4 @@
-
+import type {BotContext} from '../index';
 import { loadUsers } from '../utils/database';
 import { getServerInfo, formatUptime, formatBytes } from '../utils/server';
 import { CALLBACK_DATA, BUTTONS } from '../utils/buttons';
