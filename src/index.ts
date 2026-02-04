@@ -40,6 +40,41 @@ const OUTLINE_CIPHERS = [
   'chacha20-ietf-poly1305',
 ];
 
+// ================= INSTRUCTION =================
+const showInstruction = async (ctx: BotContext) => {
+  const instructionText = `
+📌 How to use Outline key with apps:
+
+(All systems) Karing: https://karing.app/en/download/
+(iOS) Streisand: https://streisandapp.com
+(All Systems, no iOS) v2rayNG: https://github.com/2dust/v2rayNG/releases/tag/1.10.32
+
+1️⃣ Download the app you need
+
+2️⃣ Add profile:
+  2.1 Open the app
+
+  Karing:
+    - Click "Add profile" in menu
+    - Click "Import from clipboard"
+    - Click "Save"
+    - Go to main menu, select the profile
+    - Click arrow at bottom → your profile name → click "no name: 0"
+    - Go to main menu, click DNS, and turn it on
+
+  Streisand:
+    - Click plus icon on top
+    - Click "Import from clipboard"
+
+  V2RayNG:
+    - Ctrl+V (paste)
+
+3️⃣ All done! Use it.
+`;
+
+  await ctx.reply(instructionText, { parse_mode: 'Markdown' });
+};
+
 // ================= COMMANDS =================
 bot.command('start', async (ctx) => {
   if (isAdmin(ctx)) {
@@ -47,7 +82,10 @@ bot.command('start', async (ctx) => {
   } else {
     await ctx.reply('👋 Welcome! Click to create your Outline key:', {
       reply_markup: {
-        inline_keyboard: [[{ text: 'Create Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }]],
+        inline_keyboard: [
+          [{ text: 'Create Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }],
+          [{ text: 'Instruction', callback_data: 'instructions' }],
+        ],
       },
     });
   }
@@ -55,6 +93,7 @@ bot.command('start', async (ctx) => {
 
 bot.command('help', showHelp);
 bot.command('about', showAbout);
+bot.command('instruction', showInstruction);
 
 bot.command('admin', async (ctx) => {
   if (!isAdmin(ctx)) {
@@ -75,6 +114,13 @@ bot.command('cancel', async (ctx) => {
 bot.on('callback_query:data', async (ctx) => {
   const action = ctx.callbackQuery.data;
   const userId = ctx.from?.id ?? 0;
+
+  // ===== SHOW INSTRUCTION =====
+  if (action === 'instructions') {
+    await showInstruction(ctx);
+    await ctx.answerCallbackQuery();
+    return;
+  }
 
   // ===== COPY KEY (SEND TO OWNER) =====
   if (action?.startsWith('send_key:')) {
@@ -177,7 +223,10 @@ bot.on('callback_query:data', async (ctx) => {
         } else {
           await ctx.reply('👋 Click to create your Outline key:', {
             reply_markup: {
-              inline_keyboard: [[{ text: 'Create Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }]],
+              inline_keyboard: [
+                [{ text: 'Create Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }],
+                [{ text: 'Instruction', callback_data: 'instructions' }],
+              ],
             },
           });
         }
