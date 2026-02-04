@@ -1,18 +1,17 @@
-import { Context, SessionFlavor } from 'grammy';
-
-type BotContext = Context & SessionFlavor<{ creatingOutlineKey?: boolean }>;
-
-import { getServerInfo, formatUptime, formatBytes } from '../utils/server';
-import { BUTTONS } from '../utils/buttons';
+import { BotContext } from '../bot'; // путь к твоему типу BotContext
 import { loadUsers } from '../utils/database';
+import { getServerInfo, formatUptime, formatBytes } from '../utils/server';
+import { CALLBACK_DATA, BUTTONS } from '../utils/buttons';
 import { getAllKeys } from '../utils/outline';
 
+// ================= UTILS =================
 export function isAdmin(id: number | bigint) {
   const adminId = BigInt(process.env.ADMIN_ID || '0');
   const userId = typeof id === 'bigint' ? id : BigInt(id);
   return adminId.toString() === userId.toString();
 }
 
+// ================= ADMIN MENU =================
 export async function showAdminMenu(ctx: BotContext): Promise<void> {
   if (!isAdmin(ctx.from?.id || 0)) {
     await ctx.reply('❌ You do not have admin access.');
@@ -26,6 +25,7 @@ export async function showAdminMenu(ctx: BotContext): Promise<void> {
   });
 }
 
+// ================= SERVER INFO =================
 export async function handleServerInfo(ctx: BotContext): Promise<void> {
   try {
     await ctx.answerCallbackQuery('Loading server information...');
@@ -51,9 +51,7 @@ export async function handleServerInfo(ctx: BotContext): Promise<void> {
 
     await ctx.editMessageText(message.trim(), {
       parse_mode: 'HTML',
-      reply_markup: {
-        inline_keyboard: BUTTONS.serverInfoActions(),
-      },
+      reply_markup: { inline_keyboard: BUTTONS.serverInfoActions() },
     });
   } catch (error) {
     console.error('Error getting server info:', error);
@@ -61,14 +59,7 @@ export async function handleServerInfo(ctx: BotContext): Promise<void> {
   }
 }
 
-export async function handleOutlineKeys(ctx: BotContext): Promise<void> {
-  await ctx.editMessageText('🔑 Outline Key Management', {
-    reply_markup: {
-      inline_keyboard: BUTTONS.outlineKeysMenu(),
-    },
-  });
-}
-
+// ================= API INFO =================
 interface APIConfig {
   environment: string;
   apiVersion: string;
@@ -84,52 +75,75 @@ export async function handleAPIInfo(ctx: BotContext, apiConfig: APIConfig): Prom
 📦 <b>API Version:</b> ${apiConfig.apiVersion}
 🔗 <b>Outline API URL:</b> ${apiConfig.outlineApiUrl || 'Not configured'}
 👥 <b>Admin IDs:</b> ${apiConfig.adminIds.join(', ')}
-    `;
+  `;
 
   await ctx.editMessageText(message.trim(), {
     parse_mode: 'HTML',
-    reply_markup: {
-      inline_keyboard: BUTTONS.backToAdmin(),
-    },
+    reply_markup: { inline_keyboard: BUTTONS.backToAdmin() },
   });
 }
 
-export async function startOutlineKeyCreation(ctx: BotContext): Promise<void> {
-  await ctx.editMessageText(
-    '📝 Please enter a name for the new Outline access key:\n\n(Use /cancel to abort)',
-    {
-      reply_markup: {
-        inline_keyboard: BUTTONS.cancelOutlineKey(),
-      },
-    }
-  );
-  ctx.session.creatingOutlineKey = true;
+// ================= OUTLINE KEY MANAGEMENT =================
+export async function handleOutlineKeys(ctx: BotContext): Promise<void> {
+  await listOutlineKeys(ctx);
 }
 
+export async function listOutlineKeys(ctx: BotContext): Promise<void> {
+  const users = loadUsers() ?? [];
+
+  if (!users || users.length === 0) {
+    await ctx.editMessageText('📋 <b>Outline Access Keys</b>\n\nNo access keys found.', {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: BUTTONS.backToOutlineMenu() },
+    });
+    return;
+  }
+
+  for (const user of users) {
+    const keyboard = [
+      [
+        { text: '🔑 Show Key', callback_data: `show_key:${user.id}` },
+        { text: '📤 Send Key', callback_data: `send_key:${user.telegramId}` },
+      ],
+      [
+        { text: '➕ Create Another Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY },
+      ],
+    ];
+
+    await ctx.reply(
+      `👤 <b>${user.username || 'Unknown user'}</b>\n🆔 <code>${user.telegramId}</code>`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: keyboard },
+      }
+    );
+  }
+}
+
+// ================= SHOW KEY =================
 export async function handleShowKey(ctx: BotContext) {
   const action = ctx.callbackQuery?.data;
   if (!action || !action.startsWith('show_key:')) return;
 
-  const parts = action.split(':');
-  const id = Number(parts[1]);
-
+  const userId = Number(action.split(':')[1]);
   const users = loadUsers() ?? [];
-  const user = users.find(u => Number(u.id) === id);
+  const user = users.find(u => Number(u.id) === userId);
 
   if (!user) {
     await ctx.answerCallbackQuery('❌ Key not found');
     return;
   }
 
-  // Отправляем сообщение с ключом под спойлером
-  const msg = await ctx.reply(
-    `🔑 <b>Outline Access Key for ${user.username}</b>\n\n` +
-      `<tg-spoiler><code>${user.apiKey}</code></tg-spoiler>`,
+  await ctx.reply(
+    `🔑 <b>Outline Access Key for ${user.username}</b>\n\n<tg-spoiler><code>${user.apiKey}</code></tg-spoiler>`,
     {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🗑 Delete', callback_data: `delete_key_msg:${ctx.from?.id}` }],
+          [
+            { text: '🗑 Delete Message', callback_data: `delete_key_msg:${ctx.from?.id}` },
+            { text: '📤 Send to Owner', callback_data: `send_key:${user.telegramId}` },
+          ],
         ],
       },
     }
@@ -138,6 +152,7 @@ export async function handleShowKey(ctx: BotContext) {
   await ctx.answerCallbackQuery('Key revealed! Tap code to copy.');
 }
 
+// ================= DELETE KEY MESSAGE =================
 export async function handleDeleteKeyMsg(ctx: BotContext) {
   const action = ctx.callbackQuery?.data;
   if (!action || !action.startsWith('delete_key_msg')) return;
@@ -150,36 +165,11 @@ export async function handleDeleteKeyMsg(ctx: BotContext) {
   }
 }
 
-export async function listOutlineKeys(ctx: BotContext): Promise<void> {
-  const users = loadUsers() ?? [];
-
-  if (!users || users.length === 0) {
-    await ctx.editMessageText('📋 <b>Outline Access Keys</b>\n\nNo access keys found.', {
-      parse_mode: 'HTML',
-      reply_markup: {
-        inline_keyboard: BUTTONS.backToOutlineMenu(),
-      },
-    });
-    return;
-  }
-
-  const lines = users.map((u) => {
-    const masked = u.apiKey ? `${u.apiKey.slice(0, 6)}...${u.apiKey.slice(-6)}` : 'N/A';
-    return `<b>${u.id} — ${u.username}</b>\n<code>${masked}</code>`;
-  });
-
-    // Build inline keyboard with a copy button for each key
-    const keyboard: Array<Array<{ text: string; callback_data: string }>> = users.map((u) => [
-      { text: `🔑 ${u.username}`, callback_data: `show_key:${u.id}` },
-    ]);
-
-    // append a back button row
-    keyboard.push(...BUTTONS.backToOutlineMenu());
-
-    const message = `📋 <b>Outline Access Keys</b>\n\n${lines.join('\n\n')}`;
-
-    await ctx.editMessageText(message, {
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: keyboard },
-    });
-  }
+// ================= START KEY CREATION =================
+export async function startOutlineKeyCreation(ctx: BotContext): Promise<void> {
+  await ctx.editMessageText(
+    '📝 Please enter a Telegram ID of the user for whom you want to create a new Outline key:\n\n(Use /cancel to abort)',
+    { reply_markup: { inline_keyboard: BUTTONS.cancelOutlineKey() } }
+  );
+  ctx.session.creatingOutlineKey = true;
+}
