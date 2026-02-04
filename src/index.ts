@@ -21,11 +21,12 @@ ensureDbExists();
 interface SessionData {
   creatingOutlineKey: boolean;
   keyName?: string;
+  targetUserId?: number;
 }
 
 type BotContext = Context & SessionFlavor<SessionData>;
 const bot = new Bot<BotContext>(process.env.BOT_TOKEN || '');
-bot.use(session({ initial: () => ({  }) }));
+bot.use(session({ initial: () => ({}) }));
 
 // ================= UTILS =================
 const ADMIN_ID = Number(process.env.ADMIN_ID);
@@ -42,7 +43,6 @@ bot.command('start', async (ctx) => {
   if (isAdmin(ctx)) {
     await showAdminMenu(ctx);
   } else {
-    // обычный пользователь видит только кнопку Create Key
     await ctx.reply('👋 Welcome! Click to create your Outline key:', {
       reply_markup: {
         inline_keyboard: [[{ text: 'Create Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }]],
@@ -50,6 +50,7 @@ bot.command('start', async (ctx) => {
     });
   }
 });
+
 bot.command('help', showHelp);
 bot.command('about', showAbout);
 
@@ -64,6 +65,7 @@ bot.command('admin', async (ctx) => {
 bot.command('cancel', async (ctx) => {
   ctx.session.creatingOutlineKey = false;
   delete ctx.session.keyName;
+  delete ctx.session.targetUserId;
   await ctx.reply('❌ Operation cancelled.');
 });
 
@@ -97,22 +99,36 @@ bot.on('callback_query:data', async (ctx) => {
     return;
   }
 
+  // ===== ADMIN CREATE KEY FLOW =====
+  if (isAdmin(ctx) && action === CALLBACK_DATA.OUTLINE_CREATE_KEY) {
+    ctx.session.creatingOutlineKey = true;
+    ctx.session.keyName = undefined;
+    ctx.session.targetUserId = undefined;
+
+    await ctx.reply('✏️ Enter the Telegram ID of the user for whom you want to create a key:');
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
   // ===== SELECT CIPHER =====
-  if (action?.startsWith('select_cipher:') && ctx.session.creatingOutlineKey) {
+  if (action?.startsWith('select_cipher:') && ctx.session.creatingOutlineKey && ctx.session.keyName) {
     const cipher = action.split(':')[1];
-    const username = ctx.from?.username || `user_${userId}`;
+    const username = ctx.session.keyName;
+    const targetId = ctx.session.targetUserId ?? userId;
 
     const users = loadUsers() ?? [];
-    const alreadyExists = users.find(u => u.telegramId === userId);
+    const alreadyExists = users.find(u => u.telegramId === targetId);
 
     if (!isAdmin(ctx) && alreadyExists) {
       await ctx.reply('❌ You already have an Outline key.');
       ctx.session.creatingOutlineKey = false;
+      delete ctx.session.keyName;
+      delete ctx.session.targetUserId;
       return;
     }
 
     try {
-      const apiKey = await createOutlineAccessKey(username, userId, cipher);
+      const apiKey = await createOutlineAccessKey(username, targetId, cipher);
       await ctx.reply(
         `✅ <b>Your Outline key has been created!</b>\n\n<code>${apiKey}</code>`,
         { parse_mode: 'HTML' }
@@ -124,6 +140,7 @@ bot.on('callback_query:data', async (ctx) => {
 
     ctx.session.creatingOutlineKey = false;
     delete ctx.session.keyName;
+    delete ctx.session.targetUserId;
     await ctx.answerCallbackQuery();
     return;
   }
@@ -136,7 +153,6 @@ bot.on('callback_query:data', async (ctx) => {
         if (isAdmin(ctx)) {
           await showAdminMenu(ctx);
         } else {
-          // обычный пользователь видит только Create Key
           await ctx.reply('👋 Click to create your Outline key:', {
             reply_markup: {
               inline_keyboard: [[{ text: 'Create Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }]],
@@ -166,11 +182,6 @@ bot.on('callback_query:data', async (ctx) => {
         });
         break;
 
-      case CALLBACK_DATA.OUTLINE_CREATE_KEY:
-        ctx.session.creatingOutlineKey = true;
-        await ctx.reply('✏️ Enter a name for your Outline key:');
-        break;
-
       case CALLBACK_DATA.OUTLINE_LIST_KEYS:
         await listOutlineKeys(ctx);
         break;
@@ -178,8 +189,6 @@ bot.on('callback_query:data', async (ctx) => {
       default:
         await ctx.answerCallbackQuery('Unknown action');
     }
-
-    await ctx.answerCallbackQuery();
   } catch (err) {
     console.error(err);
     await ctx.answerCallbackQuery('Error');
@@ -188,8 +197,24 @@ bot.on('callback_query:data', async (ctx) => {
 
 // ================= MESSAGE =================
 bot.on('message:text', async (ctx) => {
+  const text = ctx.message.text;
+
+  // Админ вводит ID пользователя
+  if (ctx.session.creatingOutlineKey && !ctx.session.targetUserId && isAdmin(ctx)) {
+    const targetId = Number(text);
+    if (isNaN(targetId)) {
+      await ctx.reply('❌ Invalid user ID. Try again.');
+      return;
+    }
+
+    ctx.session.targetUserId = targetId;
+    await ctx.reply('✏️ Enter a name/username for this Outline key:');
+    return;
+  }
+
+  // Ввод имени для ключа (обычный пользователь или админ после ID)
   if (ctx.session.creatingOutlineKey && !ctx.session.keyName) {
-    ctx.session.keyName = ctx.message.text;
+    ctx.session.keyName = text;
 
     const keyboard = OUTLINE_CIPHERS.map((c) => [
       { text: c, callback_data: `select_cipher:${c}` },
