@@ -6,7 +6,6 @@ import {
   handleOutlineKeys,
   handleAPIInfo,
   startOutlineKeyCreation,
-  listOutlineKeys,
   handleSelectUser,
   handleShowKey,
   handleDeleteKeyMsg,
