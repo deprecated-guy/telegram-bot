@@ -7,6 +7,9 @@ import {
   handleAPIInfo,
   startOutlineKeyCreation,
   listOutlineKeys,
+  handleSelectUser,
+  handleShowKey,
+  handleDeleteKeyMsg,
 } from './handlers/admin';
 import { createOutlineAccessKey } from './utils/outline';
 import { CALLBACK_DATA, BUTTONS } from './utils/buttons';
@@ -147,6 +150,26 @@ bot.on('callback_query:data', async (ctx) => {
 
   // ===== MENU ROUTING =====
   try {
+    if (!action) return;
+
+    // кнопка для выбора пользователя
+    if (action.startsWith('select_user:')) {
+      await handleSelectUser(ctx);
+      return;
+    }
+
+    // показать ключ пользователя
+    if (action.startsWith('show_key:')) {
+      await handleShowKey(ctx);
+      return;
+    }
+
+    // удалить сообщение с ключом
+    if (action.startsWith('delete_key_msg')) {
+      await handleDeleteKeyMsg(ctx);
+      return;
+    }
+
     switch (action) {
       case CALLBACK_DATA.MAIN_MENU:
       case CALLBACK_DATA.BACK:
@@ -183,7 +206,7 @@ bot.on('callback_query:data', async (ctx) => {
         break;
 
       case CALLBACK_DATA.OUTLINE_LIST_KEYS:
-        await listOutlineKeys(ctx);
+        await handleOutlineKeys(ctx);
         break;
 
       default:
