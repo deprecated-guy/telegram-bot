@@ -1,4 +1,4 @@
-import { BotContext } from '../bot'; // путь к твоему типу BotContext
+
 import { loadUsers } from '../utils/database';
 import { getServerInfo, formatUptime, formatBytes } from '../utils/server';
 import { CALLBACK_DATA, BUTTONS } from '../utils/buttons';
