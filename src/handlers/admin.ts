@@ -11,6 +11,14 @@ export function isAdmin(id: number | bigint) {
   return adminId.toString() === userId.toString();
 }
 
+export function maskText(text: string, startLen = 6, endLen = 6): string {
+  if (!text) return '';
+  if (text.length <= startLen + endLen) return '*'.repeat(text.length);
+  const start = text.slice(0, startLen);
+  const end = text.slice(-endLen);
+  return `${start}...${end}`;
+}
+
 // ================= ADMIN MENU =================
 export async function showAdminMenu(ctx: BotContext): Promise<void> {
   if (!isAdmin(ctx.from?.id || 0)) {
@@ -93,7 +101,7 @@ export async function handleOutlineKeys(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const messageText = '📋 <b>Outline Access Keys</b>\n\nSelect a user below to view their key:';
+  let messageText = '📋 <b>Outline Access Keys</b>\n\n';
 
   const keyboard: Array<Array<{ text: string; callback_data: string }>> = [
     [{ text: '➕ Generate Another Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }],
@@ -102,6 +110,7 @@ export async function handleOutlineKeys(ctx: BotContext): Promise<void> {
   // кнопки с username
   for (const user of users) {
     keyboard.push([{ text: user.username || `User_${user.id}`, callback_data: `select_user:${user.id}` }]);
+    messageText += `\n ${user.id} — ${user.username} — ${maskText(user.apiKey)}`;
   }
 
   await ctx.editMessageText(messageText, {
