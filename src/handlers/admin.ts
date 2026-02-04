@@ -1,8 +1,8 @@
-import type {BotContext} from '../index';
+import type { BotContext } from '../index';
 import { loadUsers } from '../utils/database';
 import { getServerInfo, formatUptime, formatBytes } from '../utils/server';
 import { CALLBACK_DATA, BUTTONS } from '../utils/buttons';
-import { getAllKeys } from '../utils/outline';
+import { createOutlineAccessKey } from '../utils/outline';
 
 // ================= UTILS =================
 export function isAdmin(id: number | bigint) {
@@ -19,9 +19,7 @@ export async function showAdminMenu(ctx: BotContext): Promise<void> {
   }
 
   await ctx.reply('👨‍💼 Admin Panel', {
-    reply_markup: {
-      inline_keyboard: BUTTONS.adminMenu(),
-    },
+    reply_markup: { inline_keyboard: BUTTONS.adminMenu() },
   });
 }
 
@@ -47,7 +45,7 @@ export async function handleServerInfo(ctx: BotContext): Promise<void> {
    Used: ${formatBytes(serverInfo.diskUsage.used)}
    Total: ${formatBytes(serverInfo.diskUsage.total)}
    Usage: ${serverInfo.diskUsage.percentage.toFixed(2)}%
-    `;
+`;
 
     await ctx.editMessageText(message.trim(), {
       parse_mode: 'HTML',
@@ -75,7 +73,7 @@ export async function handleAPIInfo(ctx: BotContext, apiConfig: APIConfig): Prom
 📦 <b>API Version:</b> ${apiConfig.apiVersion}
 🔗 <b>Outline API URL:</b> ${apiConfig.outlineApiUrl || 'Not configured'}
 👥 <b>Admin IDs:</b> ${apiConfig.adminIds.join(', ')}
-  `;
+`;
 
   await ctx.editMessageText(message.trim(), {
     parse_mode: 'HTML',
@@ -83,52 +81,76 @@ export async function handleAPIInfo(ctx: BotContext, apiConfig: APIConfig): Prom
   });
 }
 
-// ================= OUTLINE KEY MANAGEMENT =================
+// ================= OUTLINE KEYS LIST =================
 export async function handleOutlineKeys(ctx: BotContext): Promise<void> {
-  await listOutlineKeys(ctx);
-}
-
-export async function listOutlineKeys(ctx: BotContext): Promise<void> {
   const users = loadUsers() ?? [];
 
-  if (!users || users.length === 0) {
+  if (!users.length) {
     await ctx.editMessageText('📋 <b>Outline Access Keys</b>\n\nNo access keys found.', {
       parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: BUTTONS.backToOutlineMenu() },
+      reply_markup: { inline_keyboard: [[{ text: '🏠 Back', callback_data: CALLBACK_DATA.ADMIN_MENU }]] },
     });
     return;
   }
 
-  for (const user of users) {
-    const keyboard = [
-      [
-        { text: '🔑 Show Key', callback_data: `show_key:${user.id}` },
-        { text: '📤 Send Key', callback_data: `send_key:${user.telegramId}` },
-      ],
-      [
-        { text: '➕ Create Another Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY },
-      ],
-    ];
+  const messageText = '📋 <b>Outline Access Keys</b>\n\nSelect a user below to view their key:';
 
-    await ctx.reply(
-      `👤 <b>${user.username || 'Unknown user'}</b>\n🆔 <code>${user.telegramId}</code>`,
-      {
-        parse_mode: 'HTML',
-        reply_markup: { inline_keyboard: keyboard },
-      }
-    );
+  const keyboard: Array<Array<{ text: string; callback_data: string }>> = [
+    [{ text: '➕ Generate Another Key', callback_data: CALLBACK_DATA.OUTLINE_CREATE_KEY }],
+  ];
+
+  // кнопки с username
+  for (const user of users) {
+    keyboard.push([{ text: user.username || `User_${user.id}`, callback_data: `select_user:${user.id}` }]);
   }
+
+  await ctx.editMessageText(messageText, {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: keyboard },
+  });
+}
+
+// ================= SELECT USER =================
+export async function handleSelectUser(ctx: BotContext) {
+  const action = ctx.callbackQuery?.data;
+  if (!action?.startsWith('select_user:')) return;
+
+  const userId = Number(action.split(':')[1]);
+  const users = loadUsers() ?? [];
+  const user = users.find(u => Number(u.id) === userId);
+  if (!user) {
+    await ctx.answerCallbackQuery('❌ User not found');
+    return;
+  }
+
+  const messageText = `
+👤 <b>${user.username || 'Unknown user'}</b>
+🆔 <code>${user.telegramId}</code>
+🔑 <b>Outline Key:</b> <tg-spoiler><code>${user.apiKey}</code></tg-spoiler>
+`;
+
+  const keyboard = [
+    [
+      { text: '📤 Send Key', callback_data: `send_key:${user.telegramId}` },
+      { text: '🔑 Show Key', callback_data: `show_key:${user.id}` },
+    ],
+    [{ text: '◀ Back', callback_data: CALLBACK_DATA.OUTLINE_LIST_KEYS }],
+  ];
+
+  await ctx.editMessageText(messageText, {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: keyboard },
+  });
 }
 
 // ================= SHOW KEY =================
 export async function handleShowKey(ctx: BotContext) {
   const action = ctx.callbackQuery?.data;
-  if (!action || !action.startsWith('show_key:')) return;
+  if (!action?.startsWith('show_key:')) return;
 
   const userId = Number(action.split(':')[1]);
   const users = loadUsers() ?? [];
   const user = users.find(u => Number(u.id) === userId);
-
   if (!user) {
     await ctx.answerCallbackQuery('❌ Key not found');
     return;
@@ -155,7 +177,7 @@ export async function handleShowKey(ctx: BotContext) {
 // ================= DELETE KEY MESSAGE =================
 export async function handleDeleteKeyMsg(ctx: BotContext) {
   const action = ctx.callbackQuery?.data;
-  if (!action || !action.startsWith('delete_key_msg')) return;
+  if (!action?.startsWith('delete_key_msg')) return;
 
   try {
     await ctx.deleteMessage();
